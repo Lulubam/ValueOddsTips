@@ -2,9 +2,11 @@ import os
 import requests
 import time
 import functools
+import asyncio
 from datetime import datetime
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.error import BadRequest
 
 ODDS_KEY = os.getenv("ODDS_API_KEY")
 MOON_KEY = os.getenv("MOONSHOT_KEY")
@@ -193,6 +195,22 @@ def kimi_tip(sport, pick, odds, edge):
         print(f"Error generating tip: {e}")
         return "Analysis suggests high value in this pick based on odds comparison."
 
+async def send_long_message(update, text, parse_mode='Markdown', delay=0.5):
+    """
+    Split and send long messages that exceed Telegram's 4096 character limit
+    """
+    if len(text) <= 4096:
+        await update.message.reply_markdown(text)
+        return
+    
+    # Split into chunks of 4000 characters (with some buffer)
+    chunks = [text[i:i+4000] for i in range(0, len(text), 4000)]
+    
+    for i, chunk in enumerate(chunks):
+        await update.message.reply_markdown(chunk)
+        if i < len(chunks) - 1:  # Don't delay after the last chunk
+            await asyncio.sleep(delay)
+
 async def tips(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # This process will take longer due to multiple API calls, so use a detailed initial message.
     await update.message.reply_text("🔍 Analyzing odds across markets... This may take up to a minute to process all value picks and generate AI analysis. Please wait.")
@@ -262,8 +280,18 @@ async def tips(update: Update, context: ContextTypes.DEFAULT_TYPE):
     footer = "\n\n---\n⚠️ 18+ | Gamble responsibly | begambleaware.org"
     response = "\n\n".join(msg) if msg else "No games with value picks found today."
 
-    await update.message.reply_markdown(response + footer)
+    # Use the new send_long_message function to handle long messages
+    await send_long_message(update, response + footer)
 
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle errors in the telegram bot."""
+    print(f"Exception while handling an update: {context.error}")
+    
+    # Notify user about the error
+    if update and update.effective_message:
+        await update.effective_message.reply_text(
+            "Sorry, there was an error processing your request. Please try again."
+        )
 
 def main():
     if not TG_TOKEN:
@@ -273,9 +301,10 @@ def main():
     application = Application.builder().token(TG_TOKEN).build()
 
     application.add_handler(CommandHandler("tips", tips))
+    application.add_error_handler(error_handler)
 
     print("Bot polling started...")
-    # The run_polling() method keeps the bot running yes0000
+    # The run_polling() method keeps the bot running
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
