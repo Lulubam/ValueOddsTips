@@ -1,2 +1,5 @@
-python-telegram-bot==20.7
-requests>=2.32.5
+# Before (or if no version specified, a stale version might be installed):
+# python-telegram-bot
+
+# After (Recommended: Pin to the latest major version for stability):
+python-telegram-bot>=21.0
