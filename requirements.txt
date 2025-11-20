@@ -2,4 +2,4 @@
 # python-telegram-bot
 
 # After (Recommended: Pin to the latest major version for stability):
-python-telegram-bot>=21.0
+python-telegram-bot>=20.7
