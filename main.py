@@ -195,21 +195,11 @@ def kimi_tip(sport, pick, odds, edge):
         print(f"Error generating tip: {e}")
         return "Analysis suggests high value in this pick based on odds comparison."
 
-async def send_long_message(update, text, parse_mode='Markdown', delay=0.5):
-    """
-    Split and send long messages that exceed Telegram's 4096 character limit
-    """
-    if len(text) <= 4096:
-        await update.message.reply_markdown(text)
-        return
-    
-    # Split into chunks of 4000 characters (with some buffer)
-    chunks = [text[i:i+4000] for i in range(0, len(text), 4000)]
-    
-    for i, chunk in enumerate(chunks):
-        await update.message.reply_markdown(chunk)
-        if i < len(chunks) - 1:  # Don't delay after the last chunk
-            await asyncio.sleep(delay)
+
+# NOTE: The custom send_long_message function is removed as the new logic 
+# in the 'tips' function handles message splitting more safely by using
+# the existing 'msg' structure.
+
 
 async def tips(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # This process will take longer due to multiple API calls, so use a detailed initial message.
@@ -268,20 +258,33 @@ async def tips(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Format message for this specific pick
             pick_msg = (
                 f"**{i+1}.** {fixture}\n"
-                f"   **Pick:** {pick} @ {odds:.2f} (Edge: {edge*100:.1f}%)\n"
-                f"   **Time:** {date_str}\n"
-                f"   _Kimi Tip:_ {tip}"
+                f"   **Pick:** {pick} @ {odds:.2f} (Edge: {edge*100:.1f}%)\n"
+                f"   **Time:** {date_str}\n"
+                f"   _Kimi Tip:_ {tip}"
             )
             sport_msg.append(pick_msg)
 
         msg.append("\n".join(sport_msg)) # Append the entire sport block to the main message list
 
-    # 5. Send the final compiled message using markdown for formatting
+    # 5. Send the final compiled message in separate messages for each sport
     footer = "\n\n---\n⚠️ 18+ | Gamble responsibly | begambleaware.org"
-    response = "\n\n".join(msg) if msg else "No games with value picks found today."
+    
+    if not msg:
+        await update.message.reply_markdown("No games with value picks found today." + footer)
+        return
 
-    # Use the new send_long_message function to handle long messages
-    await send_long_message(update, response + footer)
+    # Send an introduction message
+    await update.message.reply_markdown(
+        f"✅ Analysis complete! Found picks in **{len(msg)}** sport categories. See details below:"
+    )
+
+    # Send each sport's collected tips as a separate message to prevent the length error
+    for sport_picks_message in msg:
+        await update.message.reply_markdown(sport_picks_message)
+
+    # Send the footer/disclaimer message last
+    await update.message.reply_markdown(footer)
+
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle errors in the telegram bot."""
